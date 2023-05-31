@@ -801,9 +801,16 @@ inline short FIX_MPY(short a, short b)
 	int c = ((int)a * (int)b) >> 6;
 
 	/* last bit shifted out = rounding-bit */
-	b = c & 0x01;
+	//b = c & 0x01;
+	//b = c >> 1;
+	//b = c & 0x00;
+	//b = c >> 1;
+	//b = ~b;
 	/* last shift + rounding bit */
-	a = (c >> 1) + b;
+	//a = (c >> 1) + b;
+	a = (c >> 1);
+
+	//a = (c >> 1);
 	return a;
 }
 
@@ -828,7 +835,7 @@ inline short FIX_MPY16(short a, short b)
 */
 int fft(short fr[], short fi[], short m)
 {
-	int mr, nn, i, j, l, k, istep, n, scale, shift;
+	int mr, nn, i, j, l, k, istep, n, scale, shift, stage = 0, wscale = 7;
 	short qr, qi, tr, ti, wr, wi;
 
 	n = 1 << m;
@@ -874,20 +881,32 @@ int fft(short fr[], short fi[], short m)
 			/* 0 <= j < N_WAVE/2 */
 			wr = Sinewave[j + N_WAVE / 4]; // >>8 if using int16 table
 			wi = -Sinewave[j]; // >>8 if using int16 table
-			if (shift) {
-				wr >>= 1;
-				wi >>= 1;
-			}
+
+			//if (wscale != 0) {
+			//	wr >>= wscale;
+			//	wi >>= wscale;
+			//	//--wscale;
+			//}
+
+			wr >>= 1;
+			wi >>= 1;
 			for (i = m; i < n; i += istep) {
 				j = i + l;
 				tr = FIX_MPY(wr, fr[j]) - FIX_MPY(wi, fi[j]);
 				ti = FIX_MPY(wr, fi[j]) + FIX_MPY(wi, fr[j]);
 				qr = fr[i];
 				qi = fi[i];
-				if (shift) {
+				/*if (shift) {
 					qr >>= 1;
 					qi >>= 1;
-				}
+				}*/
+
+				qr >>= 1;
+				qi >>= 1;
+				/*if (stage >= 7) {
+					qr >>= 1;
+					qi >>= 1;
+				}*/
 				fr[j] = qr - tr;
 				fi[j] = qi - ti;
 				fr[i] = qr + tr;
@@ -895,11 +914,13 @@ int fft(short fr[], short fi[], short m)
 			}
 		}
 		--k;
+		++stage;
+		--wscale;
 		l = istep;
 	}
 
 	// scaling to make pure spectre after fft
-	for (int i = 0; i < N_WAVE; ++i) {
+	/*for (int i = 0; i < N_WAVE; ++i) {
 		fr[i] -= 2;
 		fi[i] -= 2;
 		if (fr[i] < 0)
@@ -910,7 +931,33 @@ int fft(short fr[], short fi[], short m)
 			fr[i] += 3;
 		if (fi[i] != 0)
 			fi[i] += 3;
+	}*/
+	/*for (int i = 0; i < N_WAVE; ++i) {
+		fr[i] -= 3798;
+		fi[i] -= 3798;
+		if (fr[i] < 0)
+			fr[i] = 0;
+		if (fi[i] < 0)
+			fi[i] = 0;
+		if (fr[i] != 0)
+			fr[i] += 3798;
+		if (fi[i] != 0)
+			fi[i] += 3798;
+	}*/
+
+	for (int i = 0; i < N_WAVE; ++i) {
+		fr[i] -= 2;
+		fi[i] -= 2;
+		if (fr[i] < 0)
+			fr[i] = 0;
+		if (fi[i] < 0)
+			fi[i] = 0;
+		if (fr[i] != 0)
+			fr[i] += 8;
+		if (fi[i] != 0)
+			fi[i] += 1;
 	}
+
 	return scale;
 }
 
@@ -1027,7 +1074,7 @@ int main()
 	string pls = "";
 	complex<double> jj(0.0, 1.0);
 	for (int i = 0; i < N; ++i) {
-		signal[i] = 32. * cos(2 * M_PI * 1000 * i / Fs);
+		signal[i] = 127. * cos(2 * M_PI * 1000 * i / Fs);
 		//signal[i] = 127. * exp(2 * M_PI * 1000 * i / Fs * jj);
 		signalarr[i] = signal[i].real();
 		real[i] = signal[i].real();
