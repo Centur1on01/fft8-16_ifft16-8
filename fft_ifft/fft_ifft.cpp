@@ -824,6 +824,7 @@ inline short FIX_MPY16(short a, short b)
 	b = c & 0x01;
 	/* last shift + rounding bit */
 	a = (c >> 1) + b;
+	//a = (c >> 1);
 	return a;
 }
 
@@ -1084,7 +1085,7 @@ int main()
 	}
 	signalb4.close();
 
-	int freq = 1000 / Fs * N;
+	/*int freq = 1000 / Fs * N;
 	short rc[N] = {};
 	rc[freq] = 18000;
 	short ic[N] = {};
@@ -1094,7 +1095,15 @@ int main()
 		ic[i] >= 0 ? pls = "+" : pls = "";
 		check << i << "\t" << rc[i] << pls << ic[i] << "i" << endl;
 	}
-	check.close();
+	check.close();*/
+
+	double summb4 = 0;
+	short realb4[N];
+	short imagb4[N];
+	for (int i = 0; i < N_WAVE; ++i) {
+		realb4[i] = real[i];
+		imagb4[i] = imag[i];
+	}
 
 	fft(real, imag, 12);
 	ifft(real, imag, 12);
@@ -1105,6 +1114,7 @@ int main()
 	double nf;
 	int temp;
 	double summ = 0;
+	double summc = 0;
 	for (int i = 0; i < N; ++i) {
 		i < N / 2 ? temp = i + (double)N / 2. : temp = i - (double)N / 2.;
 		nf = Fs / (double)N * ((double)i - (double)N / 2.);
@@ -1112,9 +1122,186 @@ int main()
 		spectreout << nf << "\t" << (int)sqrt(pow(real[temp], 2) + pow(imag[temp], 2)) << endl;
 		signalout << i << "\t" << real[i] << pls << imag[i] << "i" << endl;
 		summ += pow(real[i], 2) + pow(imag[i], 2);
+		summc += pow(realb4[i], 2) + pow(imagb4[i], 2);
+		summb4 += pow(realb4[i] - real[i], 2) + pow(imagb4[i] - imag[i], 2);
 	}
 	spectreout.close();
 	signalout.close();
+	double dP = summb4 / (double)N;
+	cout << dP << endl;
+	double Pz = summ / (double)N; // условие: Pz и Pc должны быть равны
+	cout << Pz << endl;
+	double Pc = summc / (double)N;
+	cout << Pc << endl;
+	//double deltaP = 10. * log10(dP / 495.5);
+	double deltaP = 10. * log10(dP / Pz); // считаем отношение в децибелах
+	cout << deltaP << endl;
+
+
+
+
+	// Открываем файл для чтения
+	//std::ifstream file("BtB_OSNR_16.9332_dB.h5_H_cint8_B0.49989_mean=32_max=72.7803.pcm", std::ios::binary);
+	std::ifstream file("test_cint8.pcm", std::ios::binary);
+
+	// Проверяем, что файл успешно открыт
+	if (!file)
+	{
+		std::cerr << "Failed to open file" << std::endl;
+		return 1;
+	}
+
+	// Получаем размер файла
+	//file.seekg(0, std::ios::end);
+	//std::streampos file_size = file.tellg();
+	//file.seekg(0, std::ios::beg);
+	std::streampos file_size = N * 2;
+
+	// Вычисляем количество комплексных чисел в файле
+	int num_complex_numbers = file_size / 2;
+
+	// Создаем буфер для чтения данных из файла
+	//vector<complex<double>> buffer;
+	//buffer.resize(num_complex_numbers);
+	std::complex<int8_t>* buffer = new std::complex<int8_t>[num_complex_numbers];
+
+	// Читаем данные из файла в буфер
+	file.read((char*)buffer, file_size);
+
+
+	/*if (file.gcount() != file_size)
+	{
+		std::cerr << "Failed to read data from file" << std::endl;
+		return 1;
+	}*/
+
+	vector<complex<double>> buffer_vector;
+	buffer_vector.resize(num_complex_numbers);
+	ofstream check_pcm("check_pcm.txt");
+	int realmax1 = 0;
+	int realmin1 = 0;
+	int imagmax1 = 0;
+	int imagmin1 = 0;
+
+
+	short realpcm[N];
+	short imagpcm[N];
+	for (int i = 0; i < N / 2; i++)
+	{
+		//std::cout << buffer[i] << std::endl;
+		buffer_vector[i] = (complex<int>)buffer[i];
+		realpcm[i] = (int)buffer_vector[i].real();
+		imagpcm[i] = (int)buffer_vector[i].imag();
+		//check_pcm << (complex<int>)buffer[i] << endl;
+		/*if (buffer_vector[i].real() > realmax1)
+			realmax1 = buffer_vector[i].real();
+		if (buffer_vector[i].imag() > imagmax1)
+			imagmax1 = buffer_vector[i].imag();
+		if (buffer_vector[i].real() < realmin1)
+			realmin1 = buffer_vector[i].real();
+		if (buffer_vector[i].imag() < imagmin1)
+			imagmin1 = buffer_vector[i].imag();*/
+	}
+	check_pcm.close();
+	//cout << realmax1 << "\t" << realmin1 << "\n" << imagmax1 << "\t" << imagmin1 << endl;
+
+	ofstream spoutb4("sinespectreb4.txt");
+	double summpcmb4 = 0;
+	short realpcmb4[N], imagpcmb4[N];
+	for (int i = 0; i < N; ++i) {
+		realpcmb4[i] = realpcm[i];
+		imagpcmb4[i] = imagpcm[i];
+		imagpcm[i] >= 0 ? pls = "+" : pls = "";
+		spoutb4 << i << "\t" << (int)realpcm[i] << pls << (int)imagpcm[i] << "i" << endl;
+		summpcmb4 += pow(realpcm[i], 2) + pow(imagpcm[i], 2);
+	}
+	spoutb4.close();
+
+	fft(realpcm, imagpcm, 12);
+
+
+
+
+	// Освобождаем ресурсы
+	delete[] buffer;
+	file.close();
+
+
+	ofstream spout("sinespectre.txt");
+	//double nf;
+	//int temp;
+	for (int i = 0; i < N; ++i) {
+		i < N / 2 ? temp = i + N / 2 : temp = i - N / 2;
+		nf = Fs / N * (i - N / 2);
+		//spout << nf << "\t" << abs(buffer_vector[temp]) << endl;
+		spout << nf << "\t" << (int)sqrt(pow(realpcm[temp], 2) + pow(imagpcm[temp], 2)) << endl;
+	}
+	spout.close();
+
+	ifft(realpcm, imagpcm, 12);
+
+	ofstream spoutifft("sinespectrei.txt");
+	double summpcmafter = 0;
+	double summpcmdp = 0;
+	for (int i = 0; i < N; ++i) {
+		imagpcm[i] >= 0 ? pls = "+" : pls = "";
+		spoutifft << i << "\t" << (int)realpcm[i] << pls << (int)imagpcm[i] << "i" << endl;
+		summpcmafter += pow(realpcm[i], 2) + pow(imagpcm[i], 2);
+		summpcmdp += pow(realpcmb4[i] - realpcm[i], 2) + pow(imagpcmb4[i] - imagpcm[i], 2);
+	}
+	spoutifft.close();
+	cout << "PCM" << endl;
+	double Pcpcm = summpcmb4 / (double)N;
+	double Pzpcm = summpcmafter / (double)N;
+	double dPpcm = summpcmdp / (double)N;
+	cout << Pcpcm << "\t" << Pzpcm << endl;
+	cout << dPpcm << endl;
+	double deltaPpcm = 10. * log10(Pzpcm / dPpcm); // считаем отношение в децибелах
+	cout << deltaPpcm << endl;
+
+
+	//delete[] valuec;
+	//check_max.close();
+
+
+	// Открытие файла для чтения
+	ifstream filedat("IFFT_result_all_x1_8.dat", ios::binary);
+	if (!filedat)
+	{
+		cerr << "Не удалось открыть файл" << endl;
+		return 1;
+	}
+
+	// Чтение комплексных чисел из файла
+	//complex<int8_t> num;
+	complex<int16_t> num;
+	short real_part[N], imag_part[N];
+	int itt = 0;
+	ofstream dat("dat.txt");
+	while (filedat.read(reinterpret_cast<char*>(&num), sizeof(num)))
+	{
+		real_part[itt] = static_cast<short>(num.real());
+		imag_part[itt] = static_cast<short>(num.imag());
+		//cout << "Действительная часть: " << real_part << ", мнимая часть: " << imag_part << endl;
+		//imag_part[itt] >= 0 ? pls = "+" : pls = "";
+		//dat << itt << "\t" << real_part[itt] << pls << imag_part[itt] << "i" << endl;
+		//i < N / 2 ? temp = i + N / 2 : temp = i - N / 2;
+		//nf = Fs / N * (i - N / 2);
+		//spout << nf << "\t" << abs(buffer_vector[temp]) << endl;
+		//spout << nf << "\t" << (int)sqrt(pow(realpcm[temp], 2) + pow(imagpcm[temp], 2)) << endl;
+		//dat << Fs / N * (itt - N / 2) << "\t" << (int)sqrt(pow(real_part[(itt < N / 2 ? itt + N / 2 : itt - N / 2)], 2) + pow(imag_part[(itt < N / 2 ? itt + N / 2 : itt - N / 2)], 2)) << endl;
+		++itt;
+	}
+	for (int i = 0; i < N; ++i) {
+		imag_part[i] >= 0 ? pls = "+" : pls = "";
+		dat << i << "\t" << real_part[i] << pls << imag_part[i] << "i" << endl;
+		//dat << Fs / N * (i - N / 2) << "\t" << (int)sqrt(pow(real_part[(i < N / 2 ? i + N / 2 : i - N / 2)], 2) + pow(imag_part[(i < N / 2 ? i + N / 2 : i - N / 2)], 2)) << endl;
+	}
+
+	// Закрытие файла
+	filedat.close();
+	dat.close();
+
 
 	std::system("pause");
 }
